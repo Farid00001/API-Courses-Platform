@@ -7,7 +7,7 @@ const options: swaggerJsdoc.Options = {
       title: 'Courses Platform API',
       version: '1.0.0',
       description:
-        'API REST pour la plateforme de partage de cours. Permet aux enseignants de publier des notebooks Jupyter (.ipynb) et fichiers Markdown (.md) convertis automatiquement en HTML.',
+        'REST API for a course sharing platform with authentication, course upload/conversion, user profiles, and admin management.',
       contact: {
         name: 'API Support',
       },
@@ -31,7 +31,6 @@ const options: swaggerJsdoc.Options = {
         },
       },
       schemas: {
-        // ──────────── Enums ────────────
         UserRole: {
           type: 'string',
           enum: ['ADMIN', 'TEACHER', 'STUDENT'],
@@ -40,12 +39,14 @@ const options: swaggerJsdoc.Options = {
           type: 'string',
           enum: ['DRAFT', 'PUBLISHED', 'ARCHIVED'],
         },
+        CourseVisibility: {
+          type: 'string',
+          enum: ['PUBLIC', 'PRIVATE', 'RESTRICTED'],
+        },
         FileType: {
           type: 'string',
           enum: ['NOTEBOOK', 'MARKDOWN'],
         },
-
-        // ──────────── Models ────────────
         User: {
           type: 'object',
           properties: {
@@ -54,9 +55,21 @@ const options: swaggerJsdoc.Options = {
             firstName: { type: 'string' },
             lastName: { type: 'string' },
             role: { $ref: '#/components/schemas/UserRole' },
+            isActive: { type: 'boolean' },
             avatar: { type: 'string', nullable: true },
             bio: { type: 'string', nullable: true },
             createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        CourseAuthor: {
+          type: 'object',
+          properties: {
+            id: { type: 'integer' },
+            firstName: { type: 'string' },
+            lastName: { type: 'string' },
+            email: { type: 'string', format: 'email' },
+            avatar: { type: 'string', nullable: true },
           },
         },
         Course: {
@@ -66,8 +79,10 @@ const options: swaggerJsdoc.Options = {
             title: { type: 'string' },
             slug: { type: 'string' },
             description: { type: 'string', nullable: true },
+            category: { type: 'string', nullable: true },
             contentHTML: { type: 'string' },
             status: { $ref: '#/components/schemas/CourseStatus' },
+            visibility: { $ref: '#/components/schemas/CourseVisibility' },
             fileType: { $ref: '#/components/schemas/FileType' },
             originalFileName: { type: 'string' },
             filePath: { type: 'string' },
@@ -76,11 +91,10 @@ const options: swaggerJsdoc.Options = {
             authorId: { type: 'integer' },
             createdAt: { type: 'string', format: 'date-time' },
             updatedAt: { type: 'string', format: 'date-time' },
-            author: { $ref: '#/components/schemas/User' },
+            publishedAt: { type: 'string', format: 'date-time', nullable: true },
+            author: { $ref: '#/components/schemas/CourseAuthor' },
           },
         },
-
-        // ──────────── Requests ────────────
         RegisterRequest: {
           type: 'object',
           required: ['email', 'password', 'firstName', 'lastName'],
@@ -89,7 +103,6 @@ const options: swaggerJsdoc.Options = {
             password: { type: 'string', minLength: 8, example: 'securePass123' },
             firstName: { type: 'string', minLength: 2, example: 'John' },
             lastName: { type: 'string', minLength: 2, example: 'Doe' },
-            role: { $ref: '#/components/schemas/UserRole', default: 'STUDENT' },
           },
         },
         LoginRequest: {
@@ -107,6 +120,21 @@ const options: swaggerJsdoc.Options = {
             refreshToken: { type: 'string' },
           },
         },
+        ForgotPasswordRequest: {
+          type: 'object',
+          required: ['email'],
+          properties: {
+            email: { type: 'string', format: 'email', example: 'user@example.com' },
+          },
+        },
+        ResetPasswordRequest: {
+          type: 'object',
+          required: ['token', 'password'],
+          properties: {
+            token: { type: 'string' },
+            password: { type: 'string', minLength: 8, example: 'NewSecurePass123' },
+          },
+        },
         UpdateProfileRequest: {
           type: 'object',
           properties: {
@@ -116,11 +144,45 @@ const options: swaggerJsdoc.Options = {
             bio: { type: 'string', maxLength: 1000, nullable: true },
           },
         },
+        CreateCourseRequest: {
+          type: 'object',
+          required: ['file', 'title'],
+          properties: {
+            file: {
+              type: 'string',
+              format: 'binary',
+              description: 'Notebook (.ipynb) or Markdown (.md) file',
+            },
+            title: {
+              type: 'string',
+              minLength: 3,
+              maxLength: 200,
+            },
+            description: {
+              type: 'string',
+              maxLength: 5000,
+            },
+            category: {
+              type: 'string',
+              minLength: 2,
+              maxLength: 100,
+            },
+            visibility: {
+              $ref: '#/components/schemas/CourseVisibility',
+            },
+            allowDownload: {
+              type: 'boolean',
+              default: true,
+            },
+          },
+        },
         UpdateCourseRequest: {
           type: 'object',
           properties: {
             title: { type: 'string', minLength: 3, maxLength: 200 },
             description: { type: 'string', maxLength: 5000 },
+            category: { type: 'string', minLength: 2, maxLength: 100, nullable: true },
+            visibility: { $ref: '#/components/schemas/CourseVisibility' },
             allowDownload: { type: 'boolean' },
           },
         },
@@ -131,8 +193,20 @@ const options: swaggerJsdoc.Options = {
             status: { $ref: '#/components/schemas/CourseStatus' },
           },
         },
-
-        // ──────────── Responses ────────────
+        ChangeUserRoleRequest: {
+          type: 'object',
+          required: ['role'],
+          properties: {
+            role: { $ref: '#/components/schemas/UserRole' },
+          },
+        },
+        ChangeUserStatusRequest: {
+          type: 'object',
+          required: ['isActive'],
+          properties: {
+            isActive: { type: 'boolean' },
+          },
+        },
         AuthResponse: {
           type: 'object',
           properties: {
@@ -147,14 +221,7 @@ const options: swaggerJsdoc.Options = {
             },
           },
         },
-        SuccessResponse: {
-          type: 'object',
-          properties: {
-            status: { type: 'string', example: 'success' },
-            data: { type: 'object' },
-          },
-        },
-        PaginatedResponse: {
+        PaginatedCourseResponse: {
           type: 'object',
           properties: {
             status: { type: 'string', example: 'success' },
@@ -198,17 +265,12 @@ const options: swaggerJsdoc.Options = {
         },
       },
     },
-
-    // ──────────────────────────────────────────────────────
-    //  PATHS
-    // ──────────────────────────────────────────────────────
     paths: {
-      // ──────────── AUTH ────────────
       '/auth/register': {
         post: {
           tags: ['Auth'],
           summary: 'Register a new user',
-          description: 'Creates a new user account. Default role is STUDENT.',
+          description: 'Creates a new user account. New users are always created as STUDENT.',
           requestBody: {
             required: true,
             content: {
@@ -234,14 +296,6 @@ const options: swaggerJsdoc.Options = {
                 },
               },
             },
-            422: {
-              description: 'Validation error',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/ErrorResponse' },
-                },
-              },
-            },
           },
         },
       },
@@ -249,7 +303,6 @@ const options: swaggerJsdoc.Options = {
         post: {
           tags: ['Auth'],
           summary: 'Login',
-          description: 'Authenticates a user and returns JWT tokens.',
           requestBody: {
             required: true,
             content: {
@@ -281,8 +334,7 @@ const options: swaggerJsdoc.Options = {
       '/auth/refresh': {
         post: {
           tags: ['Auth'],
-          summary: 'Refresh access token',
-          description: 'Uses a refresh token to get a new access token pair.',
+          summary: 'Refresh tokens',
           requestBody: {
             required: true,
             content: {
@@ -296,15 +348,125 @@ const options: swaggerJsdoc.Options = {
               description: 'Tokens refreshed',
               content: {
                 'application/json': {
-                  schema: { $ref: '#/components/schemas/AuthResponse' },
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      status: { type: 'string', example: 'success' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          accessToken: { type: 'string' },
+                          refreshToken: { type: 'string' },
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },
-            401: {
-              description: 'Invalid or expired refresh token',
+          },
+        },
+      },
+      '/auth/logout': {
+        post: {
+          tags: ['Auth'],
+          summary: 'Explicitly logout a user',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/RefreshTokenRequest' },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'Logout successful',
               content: {
                 'application/json': {
-                  schema: { $ref: '#/components/schemas/ErrorResponse' },
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      status: { type: 'string', example: 'success' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          message: { type: 'string' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/auth/forgot-password': {
+        post: {
+          tags: ['Auth'],
+          summary: 'Request password reset',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ForgotPasswordRequest' },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'Reset flow triggered',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      status: { type: 'string', example: 'success' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          message: { type: 'string' },
+                          resetToken: { type: 'string', nullable: true },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/auth/reset-password': {
+        post: {
+          tags: ['Auth'],
+          summary: 'Reset password with reset token',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ResetPasswordRequest' },
+              },
+            },
+          },
+          responses: {
+            200: {
+              description: 'Password reset successful',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      status: { type: 'string', example: 'success' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          message: { type: 'string' },
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -315,154 +477,10 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ['Auth'],
           summary: 'Get current user',
-          description: 'Returns the authenticated user profile.',
           security: [{ BearerAuth: [] }],
           responses: {
             200: {
-              description: 'Current user data',
-              content: {
-                'application/json': {
-                  schema: {
-                    type: 'object',
-                    properties: {
-                      status: { type: 'string', example: 'success' },
-                      data: { $ref: '#/components/schemas/User' },
-                    },
-                  },
-                },
-              },
-            },
-            401: {
-              description: 'Not authenticated',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/ErrorResponse' },
-                },
-              },
-            },
-          },
-        },
-      },
-
-      // ──────────── COURSES ────────────
-      '/courses': {
-        get: {
-          tags: ['Courses'],
-          summary: 'List published courses',
-          description:
-            'Returns a paginated list of published courses. Supports search by title/description (ILIKE).',
-          parameters: [
-            {
-              in: 'query',
-              name: 'page',
-              schema: { type: 'integer', default: 1 },
-              description: 'Page number',
-            },
-            {
-              in: 'query',
-              name: 'limit',
-              schema: { type: 'integer', default: 10, maximum: 100 },
-              description: 'Items per page',
-            },
-            {
-              in: 'query',
-              name: 'search',
-              schema: { type: 'string' },
-              description: 'Search term (matches title and description)',
-            },
-            {
-              in: 'query',
-              name: 'status',
-              schema: { $ref: '#/components/schemas/CourseStatus' },
-              description: 'Filter by status (default: PUBLISHED)',
-            },
-          ],
-          responses: {
-            200: {
-              description: 'Paginated list of courses',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/PaginatedResponse' },
-                },
-              },
-            },
-          },
-        },
-        post: {
-          tags: ['Courses'],
-          summary: 'Create a new course',
-          description:
-            'Upload a .ipynb or .md file to create a course. The file is converted to HTML automatically. Requires TEACHER role.',
-          security: [{ BearerAuth: [] }],
-          requestBody: {
-            required: true,
-            content: {
-              'multipart/form-data': {
-                schema: {
-                  type: 'object',
-                  required: ['file', 'title'],
-                  properties: {
-                    file: {
-                      type: 'string',
-                      format: 'binary',
-                      description: 'Notebook (.ipynb) or Markdown (.md) file',
-                    },
-                    title: {
-                      type: 'string',
-                      minLength: 3,
-                      maxLength: 200,
-                    },
-                    description: {
-                      type: 'string',
-                      maxLength: 5000,
-                    },
-                    allowDownload: {
-                      type: 'boolean',
-                      default: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-          responses: {
-            201: {
-              description: 'Course created successfully',
-              content: {
-                'application/json': {
-                  schema: {
-                    type: 'object',
-                    properties: {
-                      status: { type: 'string', example: 'success' },
-                      data: { $ref: '#/components/schemas/Course' },
-                    },
-                  },
-                },
-              },
-            },
-            400: {
-              description: 'No file uploaded or invalid file type',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/ErrorResponse' },
-                },
-              },
-            },
-            401: { description: 'Not authenticated' },
-            403: { description: 'Not a TEACHER' },
-          },
-        },
-      },
-      '/courses/mine': {
-        get: {
-          tags: ['Courses'],
-          summary: 'List my courses (TEACHER)',
-          description:
-            'Returns all courses belonging to the authenticated teacher, regardless of status.',
-          security: [{ BearerAuth: [] }],
-          responses: {
-            200: {
-              description: 'List of teacher courses',
+              description: 'Current user profile',
               content: {
                 'application/json': {
                   schema: {
@@ -470,16 +488,89 @@ const options: swaggerJsdoc.Options = {
                     properties: {
                       status: { type: 'string', example: 'success' },
                       data: {
-                        type: 'array',
-                        items: { $ref: '#/components/schemas/Course' },
+                        type: 'object',
+                        properties: {
+                          user: { $ref: '#/components/schemas/User' },
+                        },
                       },
                     },
                   },
                 },
               },
             },
-            401: { description: 'Not authenticated' },
-            403: { description: 'Not a TEACHER' },
+          },
+        },
+      },
+      '/courses': {
+        get: {
+          tags: ['Courses'],
+          summary: 'List courses',
+          description: 'Returns paginated courses with visibility rules applied and supports filters.',
+          parameters: [
+            { in: 'query', name: 'page', schema: { type: 'integer', default: 1 } },
+            { in: 'query', name: 'limit', schema: { type: 'integer', default: 10, maximum: 100 } },
+            { in: 'query', name: 'search', schema: { type: 'string' } },
+            { in: 'query', name: 'category', schema: { type: 'string' } },
+            { in: 'query', name: 'authorId', schema: { type: 'integer' } },
+            { in: 'query', name: 'dateFrom', schema: { type: 'string', example: '2026-05-01' } },
+            { in: 'query', name: 'dateTo', schema: { type: 'string', example: '2026-05-31' } },
+            { in: 'query', name: 'status', schema: { $ref: '#/components/schemas/CourseStatus' } },
+          ],
+          responses: {
+            200: {
+              description: 'Paginated list of courses',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/PaginatedCourseResponse' },
+                },
+              },
+            },
+          },
+        },
+        post: {
+          tags: ['Courses'],
+          summary: 'Create a course',
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'multipart/form-data': {
+                schema: { $ref: '#/components/schemas/CreateCourseRequest' },
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: 'Course created',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      status: { type: 'string', example: 'success' },
+                      data: {
+                        type: 'object',
+                        properties: {
+                          course: { $ref: '#/components/schemas/Course' },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/courses/mine': {
+        get: {
+          tags: ['Courses'],
+          summary: 'List courses owned by current teacher',
+          security: [{ BearerAuth: [] }],
+          responses: {
+            200: {
+              description: 'Teacher courses',
+            },
           },
         },
       },
@@ -487,39 +578,20 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ['Courses'],
           summary: 'Get course by slug',
-          description:
-            'Returns the full course data including HTML content. Increments view count.',
           parameters: [
             {
               in: 'path',
               name: 'slug',
               required: true,
               schema: { type: 'string' },
-              description: 'Course URL slug',
             },
           ],
           responses: {
             200: {
               description: 'Course details',
-              content: {
-                'application/json': {
-                  schema: {
-                    type: 'object',
-                    properties: {
-                      status: { type: 'string', example: 'success' },
-                      data: { $ref: '#/components/schemas/Course' },
-                    },
-                  },
-                },
-              },
             },
             404: {
               description: 'Course not found',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/ErrorResponse' },
-                },
-              },
             },
           },
         },
@@ -528,8 +600,6 @@ const options: swaggerJsdoc.Options = {
         patch: {
           tags: ['Courses'],
           summary: 'Update course metadata',
-          description:
-            'Update title, description, or allowDownload. Only the course owner (TEACHER) can update.',
           security: [{ BearerAuth: [] }],
           parameters: [
             {
@@ -537,7 +607,6 @@ const options: swaggerJsdoc.Options = {
               name: 'id',
               required: true,
               schema: { type: 'integer' },
-              description: 'Course ID',
             },
           ],
           requestBody: {
@@ -549,30 +618,12 @@ const options: swaggerJsdoc.Options = {
             },
           },
           responses: {
-            200: {
-              description: 'Course updated',
-              content: {
-                'application/json': {
-                  schema: {
-                    type: 'object',
-                    properties: {
-                      status: { type: 'string', example: 'success' },
-                      data: { $ref: '#/components/schemas/Course' },
-                    },
-                  },
-                },
-              },
-            },
-            401: { description: 'Not authenticated' },
-            403: { description: 'Not the course owner' },
-            404: { description: 'Course not found' },
+            200: { description: 'Course updated' },
           },
         },
         delete: {
           tags: ['Courses'],
           summary: 'Delete a course',
-          description:
-            'Permanently deletes a course and its associated file. Only the course owner (TEACHER) can delete.',
           security: [{ BearerAuth: [] }],
           parameters: [
             {
@@ -580,36 +631,35 @@ const options: swaggerJsdoc.Options = {
               name: 'id',
               required: true,
               schema: { type: 'integer' },
-              description: 'Course ID',
             },
           ],
           responses: {
-            200: {
-              description: 'Course deleted',
-              content: {
-                'application/json': {
-                  schema: {
-                    type: 'object',
-                    properties: {
-                      status: { type: 'string', example: 'success' },
-                      message: { type: 'string' },
-                    },
-                  },
-                },
-              },
+            200: { description: 'Course deleted' },
+          },
+        },
+      },
+      '/courses/{id}/duplicate': {
+        post: {
+          tags: ['Courses'],
+          summary: 'Duplicate a course',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              in: 'path',
+              name: 'id',
+              required: true,
+              schema: { type: 'integer' },
             },
-            401: { description: 'Not authenticated' },
-            403: { description: 'Not the course owner' },
-            404: { description: 'Course not found' },
+          ],
+          responses: {
+            201: { description: 'Course duplicated' },
           },
         },
       },
       '/courses/{id}/publish': {
         patch: {
           tags: ['Courses'],
-          summary: 'Change publication status',
-          description:
-            'Set course status to PUBLISHED, DRAFT, or ARCHIVED. Only the course owner (TEACHER) can change status.',
+          summary: 'Change course status',
           security: [{ BearerAuth: [] }],
           parameters: [
             {
@@ -617,7 +667,6 @@ const options: swaggerJsdoc.Options = {
               name: 'id',
               required: true,
               schema: { type: 'integer' },
-              description: 'Course ID',
             },
           ],
           requestBody: {
@@ -629,62 +678,38 @@ const options: swaggerJsdoc.Options = {
             },
           },
           responses: {
-            200: {
-              description: 'Status updated',
-              content: {
-                'application/json': {
-                  schema: {
-                    type: 'object',
-                    properties: {
-                      status: { type: 'string', example: 'success' },
-                      data: { $ref: '#/components/schemas/Course' },
-                    },
-                  },
-                },
-              },
-            },
-            401: { description: 'Not authenticated' },
-            403: { description: 'Not the course owner' },
-            404: { description: 'Course not found' },
+            200: { description: 'Course status updated' },
           },
         },
       },
       '/courses/{id}/download': {
         get: {
           tags: ['Courses'],
-          summary: 'Download source file',
-          description:
-            'Downloads the original .ipynb or .md source file. Only available if allowDownload is true (or if the requester is the owner).',
+          summary: 'Download original course file',
           parameters: [
             {
               in: 'path',
               name: 'id',
               required: true,
               schema: { type: 'integer' },
-              description: 'Course ID',
             },
           ],
           responses: {
             200: {
-              description: 'File download',
+              description: 'Binary file download',
               content: {
                 'application/octet-stream': {
                   schema: { type: 'string', format: 'binary' },
                 },
               },
             },
-            403: { description: 'Downloads disabled for this course' },
-            404: { description: 'Course or file not found' },
           },
         },
       },
-
-      // ──────────── USERS ────────────
       '/users/me': {
         patch: {
           tags: ['Users'],
-          summary: 'Update my profile',
-          description: 'Update the authenticated user profile fields.',
+          summary: 'Update current user profile',
           security: [{ BearerAuth: [] }],
           requestBody: {
             required: true,
@@ -695,21 +720,7 @@ const options: swaggerJsdoc.Options = {
             },
           },
           responses: {
-            200: {
-              description: 'Profile updated',
-              content: {
-                'application/json': {
-                  schema: {
-                    type: 'object',
-                    properties: {
-                      status: { type: 'string', example: 'success' },
-                      data: { $ref: '#/components/schemas/User' },
-                    },
-                  },
-                },
-              },
-            },
-            401: { description: 'Not authenticated' },
+            200: { description: 'Profile updated' },
           },
         },
       },
@@ -717,32 +728,16 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ['Users'],
           summary: 'Get public user profile',
-          description: 'Returns a public user profile by ID.',
           parameters: [
             {
               in: 'path',
               name: 'id',
               required: true,
               schema: { type: 'integer' },
-              description: 'User ID',
             },
           ],
           responses: {
-            200: {
-              description: 'User profile',
-              content: {
-                'application/json': {
-                  schema: {
-                    type: 'object',
-                    properties: {
-                      status: { type: 'string', example: 'success' },
-                      data: { $ref: '#/components/schemas/User' },
-                    },
-                  },
-                },
-              },
-            },
-            404: { description: 'User not found' },
+            200: { description: 'User profile found' },
           },
         },
       },
@@ -750,57 +745,110 @@ const options: swaggerJsdoc.Options = {
         get: {
           tags: ['Users'],
           summary: 'Get published courses by user',
-          description: 'Returns all published courses for a given user.',
           parameters: [
             {
               in: 'path',
               name: 'id',
               required: true,
               schema: { type: 'integer' },
-              description: 'User ID',
             },
           ],
           responses: {
-            200: {
-              description: 'List of published courses',
-              content: {
-                'application/json': {
-                  schema: {
-                    type: 'object',
-                    properties: {
-                      status: { type: 'string', example: 'success' },
-                      data: {
-                        type: 'array',
-                        items: { $ref: '#/components/schemas/Course' },
-                      },
-                    },
-                  },
-                },
+            200: { description: 'Published courses found' },
+          },
+        },
+      },
+      '/admin/users/{id}/role': {
+        patch: {
+          tags: ['Admin'],
+          summary: 'Change user role',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              in: 'path',
+              name: 'id',
+              required: true,
+              schema: { type: 'integer' },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ChangeUserRoleRequest' },
               },
             },
-            404: { description: 'User not found' },
+          },
+          responses: {
+            200: { description: 'User role updated' },
+          },
+        },
+      },
+      '/admin/users/{id}/status': {
+        patch: {
+          tags: ['Admin'],
+          summary: 'Activate or suspend a user account',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              in: 'path',
+              name: 'id',
+              required: true,
+              schema: { type: 'integer' },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ChangeUserStatusRequest' },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'User status updated' },
+          },
+        },
+      },
+      '/admin/users/{id}': {
+        delete: {
+          tags: ['Admin'],
+          summary: 'Delete a user account',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              in: 'path',
+              name: 'id',
+              required: true,
+              schema: { type: 'integer' },
+            },
+          ],
+          responses: {
+            200: { description: 'User deleted' },
           },
         },
       },
     },
-
     tags: [
       {
         name: 'Auth',
-        description: 'Authentication: register, login, refresh tokens',
+        description: 'Authentication and password recovery',
       },
       {
         name: 'Courses',
-        description:
-          'Course CRUD, file upload (.ipynb/.md), conversion to HTML, publish/draft/archive',
+        description: 'Course management, upload, filtering, duplication and download',
       },
       {
         name: 'Users',
-        description: 'User profiles and public course listings',
+        description: 'User profile endpoints',
+      },
+      {
+        name: 'Admin',
+        description: 'Administrative user management',
       },
     ],
   },
-  apis: [], // We define everything inline, no need to scan files
+  apis: [],
 };
 
 export const swaggerSpec = swaggerJsdoc(options);

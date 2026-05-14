@@ -24,6 +24,23 @@ export function getAbsolutePath(filePath: string): string {
 }
 
 /**
+ * Duplicate a stored file inside the uploads directory and return the new relative path.
+ */
+export function duplicateStoredFile(filePath: string): string {
+  const absolutePath = path.resolve(filePath);
+  if (!fs.existsSync(absolutePath)) {
+    throw new Error(`Source file not found: ${absolutePath}`);
+  }
+
+  const parsed = path.parse(absolutePath);
+  const duplicateName = `${parsed.name}-copy-${Date.now()}${parsed.ext}`;
+  const duplicatePath = path.join(parsed.dir, duplicateName);
+  fs.copyFileSync(absolutePath, duplicatePath);
+
+  return path.relative(process.cwd(), duplicatePath).replace(/\\/g, '/');
+}
+
+/**
  * Ensure the uploads directory exists.
  */
 export function ensureUploadDir(): void {

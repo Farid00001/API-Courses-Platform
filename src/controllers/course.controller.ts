@@ -14,7 +14,7 @@ import type { CreateCourseInput, UpdateCourseInput, CourseQueryInput, PublishCou
  */
 export const getCourses = catchAsync(async (req: Request, res: Response) => {
   const query = req.query as unknown as CourseQueryInput;
-  const { courses, pagination } = await courseService.getCourses(query);
+  const { courses, pagination } = await courseService.getCourses(query, req.user?.userId, req.user?.role);
   sendPaginated(res, courses, pagination);
 });
 
@@ -34,7 +34,7 @@ export const getMyCourses = catchAsync(async (req: Request, res: Response) => {
 export const getCourseBySlug = catchAsync(async (req: Request, res: Response) => {
   const { slug } = req.params;
   const viewerId = req.user?.userId;
-  const course = await courseService.getCourseBySlug(slug, viewerId);
+  const course = await courseService.getCourseBySlug(slug, viewerId, req.user?.role);
   sendSuccess(res, { course });
 });
 
@@ -89,6 +89,20 @@ export const deleteCourse = catchAsync(async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/courses/:id/duplicate
+ * Duplicate a course and its source file.
+ */
+export const duplicateCourse = catchAsync(async (req: Request, res: Response) => {
+  const courseId = parseInt(req.params.id, 10);
+  if (isNaN(courseId)) {
+    throw new AppError('Invalid course ID.', 400);
+  }
+
+  const course = await courseService.duplicateCourse(courseId, req.user!.userId, req.user!.role);
+  sendSuccess(res, { course }, 201);
+});
+
+/**
  * PATCH /api/courses/:id/publish
  * Change course publication status.
  */
@@ -114,7 +128,7 @@ export const downloadCourse = catchAsync(async (req: Request, res: Response) => 
   }
 
   const requesterId = req.user?.userId;
-  const course = await courseService.getCourseForDownload(courseId, requesterId);
+  const course = await courseService.getCourseForDownload(courseId, requesterId, req.user?.role);
 
   // Allow owner to always download; otherwise, check allowDownload
   if (req.user && req.user.userId === course.authorId) {

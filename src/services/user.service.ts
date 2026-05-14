@@ -79,6 +79,11 @@ export async function updateProfile(userId: number, data: UpdateProfileInput) {
 }
 
 export async function updateUserRole(userId: number, role: 'ADMIN' | 'TEACHER' | 'STUDENT') {
+  const existingUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!existingUser) {
+    throw new AppError('User not found.', 404);
+  }
+
   const user = await prisma.user.update({
     where: { id: userId },
     data: { role },
@@ -92,6 +97,52 @@ export async function updateUserRole(userId: number, role: 'ADMIN' | 'TEACHER' |
       bio: true,
       createdAt: true,
       updatedAt: true,
+    },
+  });
+
+  return user;
+}
+
+export async function updateUserStatus(userId: number, isActive: boolean) {
+  const existingUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!existingUser) {
+    throw new AppError('User not found.', 404);
+  }
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { isActive },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      isActive: true,
+      avatar: true,
+      bio: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  return user;
+}
+
+export async function deleteUserAccount(userId: number) {
+  const existingUser = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!existingUser) {
+    throw new AppError('User not found.', 404);
+  }
+
+  const user = await prisma.user.delete({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      role: true,
     },
   });
 

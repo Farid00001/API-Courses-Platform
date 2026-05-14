@@ -13,7 +13,7 @@ import {
 const router = Router();
 
 // GET /api/courses - List published courses (public)
-router.get('/', validate(courseQuerySchema, 'query'), courseController.getCourses);
+router.get('/', optionalAuth, validate(courseQuerySchema, 'query'), courseController.getCourses);
 
 // GET /api/courses/mine - List all courses for authenticated teacher
 router.get('/mine', authenticate, requireRole(['TEACHER']), courseController.getMyCourses);
@@ -46,6 +46,14 @@ router.delete(
   authenticate,
   requireRole(['TEACHER']),
   courseController.deleteCourse
+);
+
+// POST /api/courses/:id/duplicate - Duplicate a course (owner or admin)
+router.post(
+  '/:id/duplicate',
+  authenticate,
+  requireRole(['TEACHER', 'ADMIN']),
+  courseController.duplicateCourse
 );
 
 // PATCH /api/courses/:id/publish - Change publication status (TEACHER + owner)

@@ -26,38 +26,49 @@ enum FileType {
   MARKDOWN
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  firstName String
-  lastName  String
-  role      UserRole @default(STUDENT)
-  avatar    String?
-  bio       String?  @db.Text
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum CourseVisibility {
+  PUBLIC
+  PRIVATE
+  RESTRICTED
+}
 
-  courses Course[]
+model User {
+  id                       Int            @id @default(autoincrement())
+  email                    String         @unique
+  password                 String
+  firstName                String
+  lastName                 String
+  role                     UserRole       @default(STUDENT)
+  avatar                   String?
+  bio                      String?        @db.Text
+  isActive                 Boolean        @default(true)
+  passwordResetTokenHash   String?
+  passwordResetExpiresAt   DateTime?
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+
+  courses      Course[]
+  refreshTokens RefreshToken[]
 
   @@map("users")
 }
 
 model Course {
-  id               Int          @id @default(autoincrement())
+  id               Int              @id @default(autoincrement())
   title            String
-  description      String?      @db.Text
-  slug             String       @unique
+  description      String?          @db.Text
+  slug             String           @unique
+  category         String?
   fileType         FileType
   originalFileName String
   filePath         String
-  contentHTML      String       @db.Text
-  status           CourseStatus @default(DRAFT)
-  allowDownload    Boolean      @default(true)
-  views            Int          @default(0)
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  contentHTML      String           @db.Text
+  status           CourseStatus     @default(DRAFT)
+  visibility       CourseVisibility @default(PUBLIC)
+  allowDownload    Boolean          @default(true)
+  views            Int              @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
   publishedAt      DateTime?
 
   authorId Int
@@ -68,4 +79,17 @@ model Course {
   @@index([authorId])
   @@index([createdAt])
   @@map("courses")
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
 }
